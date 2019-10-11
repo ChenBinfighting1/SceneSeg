@@ -29,39 +29,95 @@ class Rescale(object):
         self.fix = fix
 
     def __call__(self, sample):
+        # if not self.flag_ts:
         image = sample['image']
         h, w = image.shape[:2]
         # 输入的尺寸为 H,W 的格式
         if self.output_size == (h,w):
             return sample
-            
+
         if self.fix:
             h_rate = self.output_size[0]/h
             w_rate = self.output_size[1]/w
             min_rate = h_rate if h_rate < w_rate else w_rate
             new_h = h * min_rate
             new_w = w * min_rate
-        else: 
+        else:
             new_h, new_w = self.output_size
         new_h, new_w = int(new_h), int(new_w)
         # 直接的resize的操作实现
         img = cv2.resize(image, dsize=(new_w,new_h), interpolation=cv2.INTER_CUBIC)
-        
+
         top = (self.output_size[0] - new_h)//2
         bottom = self.output_size[0] - new_h - top
         left = (self.output_size[1] - new_w)//2
         right = self.output_size[1] - new_w - left
         if self.fix:
-            img = cv2.copyMakeBorder(img,top,bottom,left,right, cv2.BORDER_CONSTANT, value=[0,0,0])  
+            img = cv2.copyMakeBorder(img,top,bottom,left,right, cv2.BORDER_CONSTANT, value=[0,0,0])
 
         if 'segmentation' in sample.keys():
-            segmentation = sample['segmentation'] 
+            segmentation = sample['segmentation']
             seg = cv2.resize(segmentation, dsize=(new_w,new_h), interpolation=self.seg_interpolation)
 
             if self.fix:
                 seg = cv2.copyMakeBorder(seg,top,bottom,left,right, cv2.BORDER_CONSTANT, value=[0])
             sample['segmentation'] = seg
         sample['image'] = img
+        # else:
+        #     T_image = sample['T_image']
+        #     S_image = sample['S_image']
+        #     T_h, T_w = T_image.shape[:2]
+        #     S_h, S_w = S_image.shape[:2]
+        #     # 输入的尺寸为 H,W 的格式
+        #     if self.output_size_T == (T_h, T_w) and self.output_size_S == (S_h, S_w):
+        #         return sample
+        #
+        #     if self.fix:
+        #         T_h_rate = self.output_size_T[0] / T_h
+        #         T_w_rate = self.output_size_T[1] / T_w
+        #         S_h_rate = self.output_size_S[0] / S_h
+        #         S_w_rate = self.output_size_S[1] / S_w
+        #         T_min_rate = T_h_rate if T_h_rate < T_w_rate else T_w_rate
+        #         S_min_rate = S_h_rate if S_h_rate < S_w_rate else S_w_rate
+        #         T_new_h = T_h * T_min_rate
+        #         T_new_w = T_w * T_min_rate
+        #         S_new_h = S_h * S_min_rate
+        #         S_new_w = S_w * S_min_rate
+        #     else:
+        #         T_new_h, T_new_w = self.output_size_T
+        #         S_new_h, S_new_w = self.output_size_S
+        #     T_new_h, T_new_w = int(T_new_h), int(T_new_w)
+        #     S_new_h, S_new_w = int(S_new_h), int(S_new_w)
+        #     # 直接的resize的操作实现
+        #     T_img = cv2.resize(T_image, dsize=(T_new_w, T_new_h), interpolation=cv2.INTER_CUBIC)
+        #     S_img = cv2.resize(S_image, dsize=(S_new_w, S_new_h), interpolation=cv2.INTER_CUBIC)
+        #
+        #     T_top = (self.output_size_T[0] - T_new_h) // 2
+        #     T_bottom = self.output_size_T[0] - T_new_h - T_top
+        #     T_left = (self.output_size_T[1] - T_new_w) // 2
+        #     T_right = self.output_size_T[1] - T_new_w - T_left
+        #     S_top = (self.output_size_S[0] - S_new_h) // 2
+        #     S_bottom = self.output_size_S[0] - S_new_h - S_top
+        #     S_left = (self.output_size_S[1] - S_new_w) // 2
+        #     S_right = self.output_size_S[1] - S_new_w - S_left
+        #     if self.fix:
+        #         T_img = cv2.copyMakeBorder(T_img, T_top, T_bottom, T_left, T_right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        #         S_img = cv2.copyMakeBorder(S_img, T_top, S_bottom, S_left, S_right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        #
+        #     if 'segmentation' in sample.keys():
+        #         T_segmentation = sample['T_segmentation']
+        #         S_segmentation = sample['S_segmentation']
+        #         T_seg = cv2.resize(T_segmentation, dsize=(T_new_w, T_new_h), interpolation=self.seg_interpolation)
+        #         S_seg = cv2.resize(S_segmentation, dsize=(S_new_w, S_new_h), interpolation=self.seg_interpolation)
+        #
+        #         if self.fix:
+        #             T_seg = cv2.copyMakeBorder(T_seg, T_top, T_bottom, T_left, T_right, cv2.BORDER_CONSTANT, value=[0])
+        #             S_seg = cv2.copyMakeBorder(S_seg, S_top, S_bottom, S_left, S_right, cv2.BORDER_CONSTANT, value=[0])
+        #         sample['T_segmentation'] = T_seg
+        #         sample['S_segmentation'] = S_seg
+        #     sample['image'] = S_img
+        #     sample['T_image'] = T_img
+        #     sample['S_image'] = S_img
         return sample
 
 class Centerlize(object):
@@ -252,7 +308,7 @@ class ToTensor(object):
     def __call__(self, sample):
         key_list = sample.keys()
         for key in key_list:
-            if 'image' in key:
+            if 'image' in key or 'T_image' in key:
                 image = sample[key]
                 # swap color axis because
                 # numpy image: H x W x C
@@ -260,9 +316,9 @@ class ToTensor(object):
                 image = image.transpose((2,0,1))
                 sample[key] = torch.from_numpy(image.astype(np.float32)/255.0)
                 #sample[key] = torch.from_numpy(image.astype(np.float32)/128.0-1.0)
-            elif 'segmentation' == key:
-                segmentation = sample['segmentation']
-                sample['segmentation'] = torch.from_numpy(segmentation.astype(np.float32))
+            elif 'segmentation' == key or 'T_segmentation' == key:
+                segmentation = sample[key]
+                sample[key] = torch.from_numpy(segmentation.astype(np.float32))
             elif 'segmentation_onehot' == key:
                 onehot = sample['segmentation_onehot'].transpose((2,0,1))
                 sample['segmentation_onehot'] = torch.from_numpy(onehot.astype(np.float32))

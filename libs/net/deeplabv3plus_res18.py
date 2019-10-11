@@ -54,6 +54,7 @@ class deeplabv3plus_res18(nn.Module):
                 nn.init.constant_(m.bias, 0)
         self.backbone = build_backbone(args.MODEL_BACKBONE, os=args.MODEL_OUTPUT_STRIDE)
         self.backbone_layers = self.backbone.get_layers()
+        self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
 
     def forward(self, x):
         x_bottom = self.backbone(x)
@@ -78,6 +79,7 @@ class deeplabv3plus_res18(nn.Module):
         layers = self.backbone.get_layers() # 1/16
         # print("layers", layers[-1].size())
         feature_aspp = self.aspp(layers[-1])
+        # feature_aspp_2 = self.upsample2(feature_aspp)
         return feature_aspp
 
     def aspp_to_catFeat(self, feature_aspp):
@@ -86,10 +88,12 @@ class deeplabv3plus_res18(nn.Module):
         layers = self.backbone.get_layers() # 1/16
         feature_shallow = self.shortcut_conv(layers[0])
         feature_cat = torch.cat([feature_aspp, feature_shallow], 1)
-        return feature_cat
+        feature_cat_2 = self.upsample2(feature_cat)
+        return feature_cat,feature_cat_2
 
     def catFeat_to_predict(self, feature_cat):
         result = self.cat_conv(feature_cat)
         result = self.cls_conv(result)
         result = self.upsample4(result)
-        return result
+        result_2 = self.upsample2(result)
+        return result, result_2

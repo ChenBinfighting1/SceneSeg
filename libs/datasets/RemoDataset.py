@@ -49,8 +49,8 @@ class RemoDataset(Dataset):
 
         # 重新定义crop函数，现在使用的是直接resize操作
 
-        if cfg.DATA_RESCALE > 0:
-            self.rescale = Rescale(cfg.DATA_RESCALE,fix=False)
+        if cfg.DATA_RESCALE[0] > 0 and cfg.DATA_RESCALE[1] >0:
+            self.rescale = Rescale(cfg.DATA_RESCALE, fix=False)
             #self.centerlize = Centerlize(cfg.DATA_RESCALE)
         if 'train' in self.period:
             if cfg.DATA_RANDOMCROP > 0:
@@ -119,54 +119,17 @@ class RemoDataset(Dataset):
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             except:
                 print(self.img_dir[idx])
-            # image = np.array(io.imread(img_file),dtype=np.uint8)
             h,w,_ = image.shape
-            # print(image.shape)
-            sample = {'image': image, 'raw': image, 'name': name, 'row': h, 'col': w}
 
             segmentation = np.array(Image.open(self.mask_dir[idx]))
-            m_h, m_w = segmentation.shape
-            # if h != m_h or w != m_w:
-                # print('shape is not same %s', name)
-
-            # seg = cv2.imread(seg_file,0)
-            # print(seg==segmentation)
-            # sys.exit(1)
-            # print(np.min(segmentation),segmentation.shape)
-            # print(segmentation)
-
-            # aug = [[image, segmentation]]
-            # self.pipe = Augmentor.DataPipeline(aug)
-            # self.pipe.augmentor_images = aug
-            # self.pipe.zoom_random(0.5, percentage_area=0.5, randomise_percentage_area=True)
-            # self.pipe.gaussian_distortion(0.5, 3, 3, 1.0, method="in", corner="bell")
-            # # self.pipe.histogram_equalisation(0.5)
-            # self.pipe.random_distortion(0.5, 6, 6, 50)
-            # auged = self.pipe.sample(1)
-            # image = auged[0][0]
-            # segmentation = auged[0][1]
-            #
-            # def build_pipeline_generator(in_x, seed=None):
-            #     p = Augmentor.Pipeline()
-            #     p.set_seed(seed)
-            #     p.zoom_random(0.5, percentage_area=0.5, randomise_percentage_area=True)
-            #     p.gaussian_distortion(0.5, 3, 3, 1.0, method = "in", corner = "bell")
-            #     p.histogram_equalisation(0.5)
-            #     p.random_distortion(1.0, 6, 6, 50)
-            #     return p.torch_transform()(in_x)
-
-            # seed = random.randint(0,10)
-            # # print(type(image))
-            # # print(image.shape)
-            # image = build_pipeline_generator(Image.fromarray(image.astype('uint8')).convert('RGB'),seed=seed)
-            # segmentation = build_pipeline_generator(Image.fromarray(segmentation.astype('uint8')).convert('RGB'),seed=seed)
-            # image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
-            # segmentation = cv2.cvtColor(np.asarray(segmentation),cv2.COLOR_RGB2GRAY)
-            # print(type(image))
-            # print(image.shape)
-
-            sample['segmentation'] = segmentation
+            sample = {}
+            sample['name'] = name
             sample['image'] = image
+            # sample['T_image'] = image
+            # sample['S_image'] = image
+            sample['segmentation'] = segmentation
+            # sample['T_segmentation'] = segmentation
+            # sample['S_segmentation'] = segmentation
             sample['raw'] = image
             sample['row'] = image.shape[0]
             sample["col"] = image.shape[1]
@@ -181,7 +144,7 @@ class RemoDataset(Dataset):
                 sample = self.randomscale(sample)
             if self.cfg.DATA_RANDOMCROP > 0:
                 sample = self.randomcrop(sample)
-            if self.cfg.DATA_RESCALE > 0:
+            if self.cfg.DATA_RESCALE[0]>0 and self.cfg.DATA_RESCALE[1] > 0:
                 #sample = self.centerlize(sample)
                 sample = self.rescale(sample)
             if self.cfg.DATA_gt_precise >0 :
@@ -207,7 +170,7 @@ class RemoDataset(Dataset):
             h, w, _ = image.shape
             # print(image.shape)
             sample = {'image': image, 'raw': image, 'name': name, 'row': h, 'col': w}
-            if self.cfg.DATA_RESCALE > 0:
+            if self.cfg.DATA_RESCALE[0]> 0 and self.cfg.DATA_RESCALE[1] > 0:
                 sample = self.rescale(sample)
             sample = self.multiscale(sample)
 
@@ -223,19 +186,35 @@ class RemoDataset(Dataset):
 
             sample['segmentation'] = segmentation
 
-            if self.cfg.DATA_RESCALE > 0:
+            if self.cfg.DATA_RESCALE[0] > 0 and self.cfg.DATA_RESCALE[1] >0:
                 sample = self.rescale(sample)
             sample = self.multiscale(sample)
 
+        if self.cfg.FLAG_TS == True:
+            h,w = self.cfg.DATA_RESCALE_S
+            if (h,w,3) != sample['image'].shape:
+                image_S = cv2.resize(sample['image'], dsize=(w,h), interpolation=cv2.INTER_CUBIC)
+                segmentation_S = cv2.resize(sample['segmentation'], dsize=(w, h), interpolation=cv2.INTER_CUBIC)
+            else:
+                image_S = sample['image']
+                segmentation_S = sample['segmentation']
+            image_T = sample['image']
+            segmentation_T = sample['segmentation']
+            sample['image'] = image_S
+            sample['T_image'] = image_T
+            sample['segmentation'] = segmentation_S
+            sample['T_segmentation'] = segmentation_T
+
         if not flag_debug:
             sample = self.totensor(sample)
-
 
         return sample
 
     def collate_fn(self, batch):
         images = []
+        T_images = []
         seg = []
+        T_seg = []
         edg = []
         cs = []
         rs = []
@@ -246,6 +225,9 @@ class RemoDataset(Dataset):
             rs.append(sample['row'])
             cs.append(sample['col'])
             names.append(sample['name'])
+            if 'T_image' in sample.keys():
+                T_images.append(sample['T_image'])
+                T_seg.append(sample['T_segmentation'])
         if hasattr(self.cfg, 'edge_loss_weight'):
             edg.append(sample['edges'])
 
@@ -255,13 +237,24 @@ class RemoDataset(Dataset):
                 'edges': torch.stack(edg, 0),
             }
         else:
-            return {
-                'row': rs,
-                'col': cs,
-                'names': names,
-                'image': torch.stack(images, 0),
-                'segmentation': torch.stack(seg, 0),
-            }
+            if len(T_images):
+                return {
+                    'row': rs,
+                    'col': cs,
+                    'names': names,
+                    'image': torch.stack(images, 0),
+                    'segmentation': torch.stack(seg, 0),
+                    'T_image': torch.stack(T_images, 0),
+                    'T_segmentation': torch.stack(T_seg, 0)
+                }
+            else:
+                return {
+                    'row': rs,
+                    'col': cs,
+                    'names': names,
+                    'image': torch.stack(images, 0),
+                    'segmentation': torch.stack(seg, 0)
+                }
 
     def __colormap(self, N):
         """Get the map from label index to color

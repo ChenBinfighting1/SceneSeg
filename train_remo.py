@@ -108,11 +108,16 @@ class Trainer(object):
         for epoch in range(self.cfg.TRAIN_MINEPOCH, self.cfg.TRAIN_EPOCHS):
             for i_batch, sample_batched in enumerate(self.dataloader):
 
+                self.optimizer.zero_grad()
                 now_lr = self.adjust_lr(itr)  # 学习率的改变，参数传递
                 inputs_batched, labels_batched = sample_batched['image'], sample_batched['segmentation']
+                if 'T_image' in sample_batched.keys():
+                    T_inputs_batched, T_labels_batched = sample_batched['T_image'], sample_batched['T_segmentation']
 
-                self.optimizer.zero_grad()
-                predicts_batched = self.net(inputs_batched)
+                    predicts_batched = self.net(inputs_batched, x_T = T_inputs_batched)
+                else:
+                    predicts_batched = self.net(inputs_batched)
+
                 if hasattr(cfg, "distill") and cfg.distill:
                     labels_batched = labels_batched.long().to(self.cfg.GPUS_ID[0])
                 else:
@@ -144,7 +149,7 @@ class Trainer(object):
                     else:
                         predicts = torch.argmax(predicts_batched[0], dim=0).cpu().numpy()
                     predicts_color = self.dataset.label2colormap(predicts).transpose((2, 0, 1))
-                    pix_acc = np.sum(labels == predicts) / (self.cfg.DATA_RESCALE ** 2)
+                    pix_acc = np.sum(labels == predicts) / (self.cfg.DATA_RESCALE[0] * self.cfg.DATA_RESCALE[1])
 
                     tblogger.add_scalar('loss', loss.data.item(), itr)
                     tblogger.add_scalar('avg_loss', ave_total_loss.average(), itr)
