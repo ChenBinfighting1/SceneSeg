@@ -60,7 +60,7 @@ class Configuration():
             "type":"loadParam",
             "args":{"distill":{
                         "S_head":"direct",# "teacher", "Nohead"
-                        "TeacherModel": "/home/zhangming/work/mask/scene/sceneSeg/teacher/best_model_scene_deeplab_256input_Aspp128_miou.pth"
+                        "TeacherModel": "/home/zhangming/work/mask/SceneSeg/ckpt/teacher_model/best_model_scene_deeplab_256input_Aspp128_miou.pth"
                     }
                 }
             })
